@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>21點（Blackjack）示範 - Deterministic PRNG</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .info-section {
+            background: #f7fafc;
+            padding: 20px 30px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .info-section h3 {
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+
+        .info-section ul {
+            list-style: none;
+            padding-left: 20px;
+        }
+
+        .info-section li {
+            margin: 5px 0;
+            color: #4a5568;
+        }
+
+        .info-section li:before {
+            content: "▸ ";
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .controls {
+            padding: 30px;
+            background: white;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        button {
+            flex: 1;
+            min-width: 120px;
+            padding: 12px 20px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: white;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .btn-shuffle {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .btn-random {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .btn-draw {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .btn-reset {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .display-section {
+            padding: 30px;
+            background: #f7fafc;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .stat-box {
+            flex: 1;
+            min-width: 150px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .stat-box h4 {
+            color: #718096;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .stat-box .value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .cards-section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .cards-section h3 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .cards-display {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            min-height: 80px;
+            align-items: flex-start;
+        }
+
+        .card {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 10px 15px;
+            font-size: 1.5em;
+            font-weight: bold;
+            min-width: 60px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+
+        .card:hover {
+            transform: scale(1.05);
+        }
+
+        .card.red {
+            color: #e53e3e;
+        }
+
+        .card.black {
+            color: #2d3748;
+        }
+
+        .empty-state {
+            color: #a0aec0;
+            font-style: italic;
+            text-align: center;
+            padding: 30px;
+        }
+
+        .deck-visualization {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .deck-visualization h3 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .deck-cards {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .deck-card {
+            font-size: 0.9em;
+            padding: 4px 8px;
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+        }
+
+        footer {
+            background: #2d3748;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8em;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            button {
+                min-width: 100%;
+            }
+
+            .stats {
+                flex-direction: column;
+            }
+
+            .stat-box {
+                min-width: 100%;
+            }
+
+            .card {
+                font-size: 1.2em;
+                min-width: 50px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🃏 21點（Blackjack）示範</h1>
+            <p>Deterministic PRNG + Fisher-Yates 洗牌演算法</p>
+        </header>
+
+        <div class="info-section">
+            <h3>📖 使用說明</h3>
+            <ul>
+                <li><strong>Seed：</strong>輸入任意字串或數字作為隨機種子，相同的 seed 會產生相同的洗牌結果</li>
+                <li><strong>Shuffle：</strong>使用輸入的 seed 進行洗牌（如果沒有輸入 seed，請先按「Random seed」）</li>
+                <li><strong>Random seed：</strong>自動產生一個隨機 seed，方便分享或回放</li>
+                <li><strong>Draw：</strong>從牌堆頂端抽一張牌</li>
+                <li><strong>Reset：</strong>重置牌堆和已抽牌，保留 seed 以便再次測試</li>
+            </ul>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="seedInput">🎲 Seed（隨機種子）</label>
+                <input type="text" id="seedInput" placeholder="輸入任意字串或數字（例如：test42）">
+            </div>
+
+            <div class="button-group">
+                <button class="btn-shuffle" onclick="shuffle()">🔀 Shuffle（洗牌）</button>
+                <button class="btn-random" onclick="generateRandomSeed()">🎲 Random seed（隨機種子）</button>
+                <button class="btn-draw" id="drawBtn" onclick="drawCard()" disabled>🃏 Draw（抽牌）</button>
+                <button class="btn-reset" onclick="reset()">🔄 Reset（重置）</button>
+            </div>
+        </div>
+
+        <div class="display-section">
+            <div class="stats">
+                <div class="stat-box">
+                    <h4>剩餘牌數</h4>
+                    <div class="value" id="remainingCount">52</div>
+                </div>
+                <div class="stat-box">
+                    <h4>已抽牌數</h4>
+                    <div class="value" id="drawnCount">0</div>
+                </div>
+                <div class="stat-box">
+                    <h4>當前 Seed</h4>
+                    <div class="value" id="currentSeed" style="font-size: 1.2em; word-break: break-all;">-</div>
+                </div>
+            </div>
+
+            <div class="cards-section">
+                <h3>🎴 已抽牌序列</h3>
+                <div class="cards-display" id="drawnCards">
+                    <div class="empty-state">尚未抽牌，請先 Shuffle 後按 Draw</div>
+                </div>
+            </div>
+
+            <div class="deck-visualization">
+                <h3>📚 當前牌堆順序（驗證用）</h3>
+                <div class="deck-cards" id="deckDisplay">
+                    <div class="empty-state">尚未洗牌</div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>© 2025 21點示範 | Deterministic PRNG Implementation | 版本 1.0</p>
+        </footer>
+    </div>
+
+    <script>
+        // ===== 全域變數 =====
+        let deck = [];              // 當前牌堆
+        let drawnCards = [];        // 已抽的牌
+        let currentDrawIndex = 0;   // 當前抽牌索引
+        let prng = null;            // PRNG 實例
+
+        // ===== 撲克牌設定 =====
+        const suits = ['♠', '♥', '♦', '♣'];  // 黑桃、紅心、方塊、梅花
+        const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+
+        // ===== 簡單 Hash 函數（字串轉整數）=====
+        // 將任意字串轉換為 32 位元整數，用於 PRNG seed
+        function simpleHash(str) {
+            let hash = 0;
+            if (str.length === 0) return hash;
+            
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash; // 轉換為 32 位元整數
+            }
+            
+            return Math.abs(hash);
+        }
+
+        // ===== Mulberry32 PRNG（Deterministic 隨機數產生器）=====
+        // 這是一個小型、快速且品質良好的 PRNG
+        // 相同的 seed 會產生相同的隨機數序列
+        function createPRNG(seed) {
+            // 如果 seed 是字串，先進行 hash
+            if (typeof seed === 'string') {
+                seed = simpleHash(seed);
+            }
+            
+            // 確保 seed 是正整數
+            seed = Math.abs(parseInt(seed)) || 1;
+            
+            return {
+                seed: seed,
+                next: function() {
+                    let t = seed += 0x6D2B79F5;
+                    t = Math.imul(t ^ t >>> 15, t | 1);
+                    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+                    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+                }
+            };
+        }
+
+        // ===== Fisher-Yates 洗牌演算法 =====
+        // 使用 PRNG 作為隨機來源，確保 deterministic
+        function fisherYatesShuffle(array, prngInstance) {
+            const arr = [...array]; // 複製陣列避免修改原始資料
+            
+            for (let i = arr.length - 1; i > 0; i--) {
+                // 使用 PRNG 產生 [0, i] 範圍內的隨機索引
+                const j = Math.floor(prngInstance.next() * (i + 1));
+                
+                // 交換元素
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            
+            return arr;
+        }
+
+        // ===== 初始化牌堆 =====
+        function initializeDeck() {
+            const newDeck = [];
+            
+            // 產生 52 張標準撲克牌
+            for (let suit of suits) {
+                for (let rank of ranks) {
+                    newDeck.push({
+                        rank: rank,
+                        suit: suit,
+                        display: rank + suit
+                    });
+                }
+            }
+            
+            return newDeck;
+        }
+
+        // ===== Shuffle 功能 =====
+        function shuffle() {
+            const seedInput = document.getElementById('seedInput').value.trim();
+            
+            if (!seedInput) {
+                alert('請先輸入 seed 或按「Random seed」產生隨機種子！');
+                return;
+            }
+            
+            // 初始化牌堆
+            const originalDeck = initializeDeck();
+            
+            // 建立 PRNG
+            prng = createPRNG(seedInput);
+            
+            // 使用 Fisher-Yates 洗牌
+            deck = fisherYatesShuffle(originalDeck, prng);
+            
+            // 重置抽牌狀態
+            drawnCards = [];
+            currentDrawIndex = 0;
+            
+            // 更新顯示
+            updateDisplay();
+            
+            // 啟用 Draw 按鈕
+            document.getElementById('drawBtn').disabled = false;
+            
+            // 顯示當前 seed
+            document.getElementById('currentSeed').textContent = seedInput;
+            
+            console.log('洗牌完成！Seed:', seedInput);
+            console.log('牌堆順序:', deck.map(c => c.display).join(', '));
+        }
+
+        // ===== 產生隨機 Seed =====
+        function generateRandomSeed() {
+            // 使用當前時間戳記 + 隨機數產生唯一 seed
+            const randomSeed = Date.now().toString() + Math.random().toString(36).substring(2, 9);
+            
+            document.getElementById('seedInput').value = randomSeed;
+            
+            console.log('產生隨機 seed:', randomSeed);
+        }
+
+        // ===== Draw（抽牌）功能 =====
+        function drawCard() {
+            if (currentDrawIndex >= deck.length) {
+                alert('已經沒有牌可以抽了！請按 Reset 重新開始。');
+                return;
+            }
+            
+            // 從牌堆頂端抽一張牌
+            const card = deck[currentDrawIndex];
+            drawnCards.push(card);
+            currentDrawIndex++;
+            
+            // 更新顯示
+            updateDisplay();
+            
+            console.log('抽到牌:', card.display);
+            
+            // 如果抽完所有牌，禁用 Draw 按鈕
+            if (currentDrawIndex >= deck.length) {
+                document.getElementById('drawBtn').disabled = true;
+                console.log('所有牌都已抽完！');
+            }
+        }
+
+        // ===== Reset（重置）功能 =====
+        function reset() {
+            // 重置牌堆和抽牌狀態
+            deck = [];
+            drawnCards = [];
+            currentDrawIndex = 0;
+            prng = null;
+            
+            // 保留 seed（根據規格，不強制清除）
+            // 如果要清除 seed，可以取消下行註解：
+            // document.getElementById('seedInput').value = '';
+            
+            // 更新顯示
+            updateDisplay();
+            
+            // 禁用 Draw 按鈕
+            document.getElementById('drawBtn').disabled = true;
+            
+            // 清除當前 seed 顯示
+            document.getElementById('currentSeed').textContent = '-';
+            
+            console.log('已重置！');
+        }
+
+        // ===== 更新顯示 =====
+        function updateDisplay() {
+            // 更新統計數字
+            document.getElementById('remainingCount').textContent = deck.length - currentDrawIndex;
+            document.getElementById('drawnCount').textContent = drawnCards.length;
+            
+            // 更新已抽牌顯示
+            const drawnCardsDiv = document.getElementById('drawnCards');
+            if (drawnCards.length === 0) {
+                drawnCardsDiv.innerHTML = '<div class="empty-state">尚未抽牌，請先 Shuffle 後按 Draw</div>';
+            } else {
+                drawnCardsDiv.innerHTML = drawnCards.map(card => {
+                    const colorClass = (card.suit === '♥' || card.suit === '♦') ? 'red' : 'black';
+                    return `<div class="card ${colorClass}">${card.display}</div>`;
+                }).join('');
+            }
+            
+            // 更新牌堆顯示
+            const deckDisplayDiv = document.getElementById('deckDisplay');
+            if (deck.length === 0) {
+                deckDisplayDiv.innerHTML = '<div class="empty-state">尚未洗牌</div>';
+            } else {
+                deckDisplayDiv.innerHTML = deck.map((card, index) => {
+                    const colorClass = (card.suit === '♥' || card.suit === '♦') ? 'red' : 'black';
+                    const style = index < currentDrawIndex ? 'opacity: 0.3; text-decoration: line-through;' : '';
+                    return `<span class="deck-card ${colorClass}" style="${style}">${card.display}</span>`;
+                }).join('');
+            }
+        }
+
+        // ===== 頁面載入時初始化 =====
+        window.onload = function() {
+            updateDisplay();
+            console.log('21點示範程式已載入！');
+            console.log('請輸入 seed 並按 Shuffle 開始。');
+        };
+    </script>
+</body>
+</html>
