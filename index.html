@@ -555,7 +555,9 @@
         // ===== 更新顯示 =====
         function updateDisplay() {
             // 更新統計數字
-            document.getElementById('remainingCount').textContent = deck.length - currentDrawIndex;
+            // 如果尚未洗牌，顯示標準 52 張牌
+            const remainingCount = deck.length === 0 ? 52 : deck.length - currentDrawIndex;
+            document.getElementById('remainingCount').textContent = remainingCount;
             document.getElementById('drawnCount').textContent = drawnCards.length;
             
             // 更新已抽牌顯示
